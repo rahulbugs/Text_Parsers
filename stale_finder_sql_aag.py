@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import os
 import re
 import sys
@@ -6,21 +8,16 @@ import sys
 def print_in_red(text):
     print("\033[91m{}\033[00m" .format(text))
 
-# Check if the file path is provided as an argument
+def print_in_green(text):
+    print("\033[92m{}\033[00m" .format(text))
+
+# Check if the current directory is provided as an argument
 if len(sys.argv) < 2:
-    print("Usage: python script.py <file_path>")
+    print("Usage: python script.py <current_directory>")
     sys.exit(1)
 
-# Get the file path from the command line arguments
-file_path = sys.argv[1]
-
-# Ensure that the file exists
-if not os.path.exists(file_path):
-    print(f"Error: File '{file_path}' not found.")
-    sys.exit(1)
-
-# Get the directory containing the file
-current_directory = os.path.dirname(file_path)
+# Get the current directory from the command line arguments
+current_directory = sys.argv[1]
 
 # List all directories in the current directory
 directories = [d for d in os.listdir(current_directory) if os.path.isdir(os.path.join(current_directory, d))]
@@ -36,8 +33,8 @@ for directory in directories:
     if re.search(ip_address_pattern, directory):
         ip_directories.append(directory)
 
-# Initialize an empty list to store files with "magneto_exec*INFO*" in their names
-magneto_exec_files = []
+# Initialize a variable to track whether kStale entries are found
+kstale_found = False
 
 # Loop over each IP directory
 for ip_directory in ip_directories:
@@ -53,16 +50,25 @@ for ip_directory in ip_directories:
     # Filter files that contain "magneto_exec*INFO*" in their names
     magneto_exec_files_in_directory = [os.path.join(current_directory_path, file) for file in files_in_directory if "magneto_exec" in file and "INFO" in file]
 
-    # Add the matching files to the list
-    magneto_exec_files.extend(magneto_exec_files_in_directory)
-
-# Iterate through each magneto file
-for file in magneto_exec_files:
-    with open(file, 'r', encoding='latin-1') as f:
-        # Read through the file line by line
-        for line_number, line in enumerate(f, start=1):
-            # Check if both 'kStale' and 'Task id' are in the line
-            if 'kStale' in line and 'Task id' in line:
-                print_in_red("Consider applying magneto_sql_enable_refresh_eh_before_full_inc_backup for incremental backups")
-                print_in_red("and setting magneto_sql_enable_refresh_eh_before_log_backup for log backups.")
+    # Iterate through each magneto file
+    for file in magneto_exec_files_in_directory:
+        with open(file, 'r', encoding='latin-1') as f:
+            # Read through the file line by line
+            for line in f:
+                # Check if both 'kStale' and 'Task id' are in the line
+                if 'kStale' in line and 'Task id' in line:
+                    kstale_found = True
+                    break
+            if kstale_found:
                 break
+    if kstale_found:
+        break
+
+# Print message about setting if kStale entries are found
+if kstale_found:
+    print_in_red("There appears to be occurrences of kStale entries in the magneto logs. Consider setting")
+    print_in_green("magneto_sql_enable_refresh_eh_before_full_inc_backup for incremental backups")
+    print_in_green("and magneto_sql_enable_refresh_eh_before_log_backup for log backups.")
+else:
+    print("No occurrences of kStale entries found in the magneto logs.")
+
